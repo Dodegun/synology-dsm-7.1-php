@@ -1,0 +1,12 @@
+{
+  "id": @METADATA_ID@,
+  "prefix": "@PHP_PREFIX@",
+  "extension_list_path": "@TARGET@/misc/extension_list.json",
+  "default_settings": "@TARGET@/misc/default_settings.json",
+  "default_ini": "@TARGET@/misc/php-fpm.ini",
+  "cgi_path": "@TARGET@/usr/local/bin/@PHP_PREFIX@-cgi",
+  "fpm_path": "@TARGET@/usr/local/bin/@PHP_PREFIX@-fpm",
+  "cli_path": "@TARGET@/usr/local/bin/@PHP_PREFIX@",
+  "fpm_syslog_ident": "@PHP_PREFIX@-fpm",
+  "version": 1
+}

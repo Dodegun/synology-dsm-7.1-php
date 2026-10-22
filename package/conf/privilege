@@ -1,0 +1,7 @@
+{
+  "defaults": {
+    "run-as": "package"
+  },
+  "username": "@PHP_PREFIX@dsm71",
+  "groupname": "@PHP_PREFIX@dsm71"
+}

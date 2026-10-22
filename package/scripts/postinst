@@ -1,0 +1,12 @@
+#!/bin/sh
+# Runtime provider only: Web Station creates and starts individual FPM profiles.
+# Do not create /etc files, replace another PHP branch, or start an FPM listener.
+set -eu
+: "${SYNOPKG_PKGDEST:?Package destination is not set}"
+for program in @PHP_PREFIX@ @PHP_PREFIX@-cgi @PHP_PREFIX@-fpm; do
+    if [ ! -x "${SYNOPKG_PKGDEST}/usr/local/bin/${program}" ]; then
+        echo "Missing executable: ${program}" >&2
+        exit 1
+    fi
+done
+exit 0

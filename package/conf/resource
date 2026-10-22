@@ -1,0 +1,9 @@
+{
+  "usr-local-linker": {
+    "bin": [
+      "usr/local/bin/@PHP_PREFIX@",
+      "usr/local/bin/@PHP_PREFIX@-cgi",
+      "usr/local/bin/@PHP_PREFIX@-fpm"
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Package Center removes its own declarative CLI links and package files.
+exit 0

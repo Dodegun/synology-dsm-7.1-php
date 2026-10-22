@@ -1,0 +1,86 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build.yml
+      - Dockerfile
+      - .dockerignore
+      - sources.lock.json
+      - versions.json
+      - scripts/**
+      - package/**
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: PHP ${{ matrix.php }} / cedarview
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CONTAINER: synology-php-build
+      PHP_SERIES: ${{ matrix.php }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download locked upstream sources
+        shell: pwsh
+        run: ./scripts/fetch-inputs.ps1
+      - name: Select the pinned PHP release
+        run: |
+          eval "$(python3 scripts/variant_config.py --shell)"
+          echo "SPK=$PACKAGE-cedarview-$PHP_VERSION-0001.spk" >> "$GITHUB_ENV"
+          python3 scripts/variant_config.py
+      - name: Prepare the Linux builder
+        run: |
+          docker build -t synology-php-builder:local .
+          docker run -d --name "$CONTAINER" --cpus=2 --memory=4g \
+            -e BUILD_JOBS=2 \
+            -e PHP_SERIES="$PHP_SERIES" \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/work" \
+            --mount type=volume,source=synology-php-build,target=/build \
+            synology-php-builder:local sleep infinity
+      - name: Compile with the cedarview DSM 7.1 toolchain
+        run: docker exec "$CONTAINER" bash /work/scripts/build-linux.sh
+      - name: Validate staged runtime against SDK glibc
+        run: docker exec "$CONTAINER" python3 /work/scripts/validate-build.py
+      - name: Generate Web Station defaults and package the SPK
+        run: docker exec "$CONTAINER" bash /work/scripts/package-linux.sh
+      - name: Extract and verify the final SPK
+        run: |
+          docker exec "$CONTAINER" python3 /work/scripts/verify-spk.py \
+            "/work/dist/$SPK" --destination /build/verified-spk
+          docker exec "$CONTAINER" python3 /work/scripts/validate-build.py \
+            --stage /build/verified-spk --output "/work/build/$PHP_SERIES/final-validation.json"
+      - name: Upload SPK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: PHP${{ matrix.php }}-cedarview-DSM7.1
+          path: |
+            dist/*.spk
+            dist/*.sha256
+            dist/*.manifest.json
+            build/${{ matrix.php }}/validation.json
+            build/${{ matrix.php }}/package-validation.json
+            build/${{ matrix.php }}/final-validation.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Save build logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: PHP${{ matrix.php }}-cedarview-build-logs
+          path: |
+            build/${{ matrix.php }}/logs/
+            build/${{ matrix.php }}/status.txt
+          if-no-files-found: warn
+          retention-days: 14

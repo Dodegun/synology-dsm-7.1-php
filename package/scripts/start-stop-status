@@ -1,0 +1,3 @@
+#!/bin/sh
+# Matches the stock non-startable PHP provider lifecycle: no standalone daemon.
+exit 0

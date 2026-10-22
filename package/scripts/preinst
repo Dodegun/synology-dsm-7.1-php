@@ -1,0 +1,3 @@
+#!/bin/sh
+# Package Center validates the cedarview architecture and DSM minimum in INFO.
+exit 0

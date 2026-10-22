@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "name": "apcu",
+      "version": "5.1.28",
+      "filename": "apcu-5.1.28.tgz",
+      "url": "https://pecl.php.net/get/apcu-5.1.28.tgz",
+      "sha256": "ca9c1820810a168786f8048a4c3f8c9e3fd941407ad1553259fb2e30b5f057bf"
+    },
+    {
+      "name": "curl",
+      "version": "8.23.0",
+      "filename": "curl-8.23.0.tar.xz",
+      "url": "https://curl.se/download/curl-8.23.0.tar.xz",
+      "sha256": "8dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5"
+    },
+    {
+      "name": "libxml2",
+      "version": "2.15.4",
+      "filename": "libxml2-2.15.4.tar.xz",
+      "url": "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz",
+      "sha256": "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821"
+    },
+    {
+      "name": "libzip",
+      "version": "1.12.1",
+      "filename": "libzip-1.12.1.tar.xz",
+      "url": "https://libzip.org/download/libzip-1.12.1.tar.xz",
+      "sha256": "c40062022a1963c80573d48f6070792297cecd7c6bffe3aefcac0d8b9bee8913"
+    },
+    {
+      "name": "oniguruma",
+      "version": "6.9.10",
+      "filename": "onig-6.9.10.tar.gz",
+      "url": "https://github.com/kkos/oniguruma/releases/download/v6.9.10/onig-6.9.10.tar.gz",
+      "sha256": "2a5cfc5ae259e4e97f86b68dfffc152cdaffe94e2060b770cb827238d769fc05"
+    },
+    {
+      "name": "openssl",
+      "version": "3.5.9",
+      "filename": "openssl-3.5.9.tar.gz",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+    },
+    {
+      "name": "php",
+      "version": "8.4.27",
+      "filename": "php-8.4.27.tar.xz",
+      "url": "https://www.php.net/distributions/php-8.4.27.tar.xz",
+      "sha256": "dcf93923b0e38e0d5252b25b796520b5a47761a08b3488b6d0b5d1115764d3f0"
+    },
+    {
+      "name": "php82",
+      "version": "8.2.35",
+      "filename": "php-8.2.35.tar.xz",
+      "url": "https://www.php.net/distributions/php-8.2.35.tar.xz",
+      "sha256": "5737b98601fe5ab1b8c5db0c82ed3158acb9283ed3081ffe2faffb9ac81455e6"
+    },
+    {
+      "name": "php83",
+      "version": "8.3.36",
+      "filename": "php-8.3.36.tar.xz",
+      "url": "https://www.php.net/distributions/php-8.3.36.tar.xz",
+      "sha256": "dd54693aa334c5c4d72e9aee96b082c2473750a18a6c1d105789c93a3b1692fd"
+    },
+    {
+      "name": "sqlite3",
+      "version": "3.54.1",
+      "filename": "sqlite-autoconf-3540100.tar.gz",
+      "url": "https://www.sqlite.org/2026/sqlite-autoconf-3540100.tar.gz",
+      "sha256": "926ef8d3eab93fbf6e06011901273eec076b25594a4e1cdadd50c987f4f6d64e"
+    },
+    {
+      "name": "synology-toolchain",
+      "version": "cedarview-7.1-gcc8.5.0-glibc2.26",
+      "filename": "cedarview-gcc850_glibc226_x86_64-GPL.txz",
+      "url": "https://global.synologydownload.com/download/ToolChain/toolchain/7.1-42661/Intel%20x86%20Linux%203.10.108%20%28Cedarview%29/cedarview-gcc850_glibc226_x86_64-GPL.txz",
+      "sha256": "4c72e396416ae7c70c36c399c124914b0b60b58520788a5bc8ec1b6191b5f197"
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.2",
+      "filename": "zlib-1.3.2.tar.xz",
+      "url": "https://zlib.net/zlib-1.3.2.tar.xz",
+      "sha256": "d7a0654783a4da529d1bb793b7ad9c3318020af77667bcae35f95d0e42a792f3"
+    },
+    {
+      "name": "zlib-security-patch",
+      "version": "df84af25dc1942490e1d1c899a07619152a46148",
+      "filename": "zlib-1.3.2-CVE-2026-85091.patch",
+      "url": "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148.patch",
+      "sha256": "110ff14375733173d8aa54574473424fbd7dfe4b81f1ca34a759c6fe14b15b14"
+    }
+  ]
+}
