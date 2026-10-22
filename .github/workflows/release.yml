@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [Build]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build run ID
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+    steps:
+      - name: Select the successful build
+        run: |
+          [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > run.json
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .status == "completed" and .conclusion == "success" and
+            .head_branch == "main" and .head_repository.full_name == $repo and
+            .path == ".github/workflows/build.yml" and
+            (.event == "push" or .event == "workflow_dispatch")
+          ' run.json
+          echo "BUILD_SHA=$(jq -r .head_sha run.json)" >> "$GITHUB_ENV"
+      - name: Download and check the SPKs
+        run: |
+          for series in 8.2 8.3 8.4; do
+            gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "PHP$series-cedarview-DSM7.1" --dir "$series"
+            mapfile -t packages < <(find "$series" -type f -name '*.spk')
+            [[ ${#packages[@]} == 1 ]]
+            spk=${packages[0]}
+            version=$(jq -er --arg series "$series" '
+              select(.php_series == $series and .package == ("PHP" + $series) and
+                     .architecture == "cedarview") | .version
+            ' "$spk.manifest.json")
+            [[ "$version" =~ ^${series//./\\.}\.[0-9]+-[0-9]{4}$ ]]
+            [[ "$(basename "$spk")" == "PHP$series-cedarview-$version.spk" ]]
+            (cd "$(dirname "$spk")" && sha256sum --check --strict "$(basename "$spk").sha256")
+            digest=$(sha256sum "$spk" | cut -d ' ' -f 1)
+            [[ "$digest" == "$(jq -er .spk_sha256 "$spk.manifest.json")" ]]
+            tar -xOf "$spk" INFO | grep -Fx "version=\"$version\""
+            printf '%s\t%s\t%s\t%s\n' "$series" "$version" "$spk" "$digest" >> packages.tsv
+          done
+      - name: Publish a release for each full PHP version
+        run: |
+          while IFS=$'\t' read -r series version spk digest; do
+            tag="php-$version"
+            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" > existing.json 2>/dev/null; then
+              jq -e --arg file "$(basename "$spk")" --arg digest "sha256:$digest" '
+                .draft == false and
+                any(.assets[]; .name == $file and .state == "uploaded" and .digest == $digest) and
+                any(.assets[]; .name == ($file + ".sha256") and .state == "uploaded")
+              ' existing.json
+              echo "$tag already published with the same SPK"
+              continue
+            fi
+            gh release create "$tag" "$spk" "$spk.sha256" \
+              --repo "$GITHUB_REPOSITORY" --target "$BUILD_SHA" \
+              --title "PHP $version" --notes-file /dev/null --draft
+            latest=false
+            if [[ "$series" == 8.4 ]]; then latest=true; fi
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest="$latest"
+          done < packages.tsv
