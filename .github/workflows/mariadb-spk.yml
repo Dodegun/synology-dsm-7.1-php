@@ -48,9 +48,9 @@ jobs:
             --runtime "runtime/mariadb-$MARIADB_VERSION-cedarview-0001.tar.gz" --output dist
       - name: Verify package lifecycle
         run: |
-          sudo useradd --system --no-create-home --shell /usr/sbin/nologin mariadbcustom
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin mariadb
           sudo python3 mariadb/verify-spk.py \
-            --spk "dist/MariaDBCustom-cedarview-$MARIADB_VERSION-0001.spk" --output dist/spk-validation.json
+            --spk "dist/MariaDB-cedarview-$MARIADB_VERSION-0001.spk" --output dist/spk-validation.json
       - name: Save the SPK
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -60,5 +60,5 @@ jobs:
           retention-days: 30
       - name: Upload SPK to the existing release
         run: |
-          (cd dist && sha256sum --check --strict "MariaDBCustom-cedarview-$MARIADB_VERSION-0001.spk.sha256")
+          (cd dist && sha256sum --check --strict "MariaDB-cedarview-$MARIADB_VERSION-0001.spk.sha256")
           gh release upload "$RUNTIME_TAG" dist/*.spk dist/*.spk.sha256 --repo "$GITHUB_REPOSITORY"

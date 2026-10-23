@@ -14,8 +14,8 @@ import time
 
 
 def verify(spk, output):
-    account = pwd.getpwnam('mariadbcustom')
-    report = {'physical_nas_tested': False, 'package': 'MariaDBCustom'}
+    account = pwd.getpwnam('mariadb')
+    report = {'physical_nas_tested': False, 'package': 'MariaDB'}
     with tempfile.TemporaryDirectory(prefix='mariadb-spk-') as directory:
         root = Path(directory)
         root.chmod(0o755)
@@ -30,7 +30,7 @@ def verify(spk, output):
                 raise ValueError('Missing or duplicate SPK members')
             archive.extractall(outer, filter='data')
         info = (outer/'INFO').read_text()
-        for line in ('package="MariaDBCustom"', 'arch="cedarview"', 'os_min_ver="7.1-42661"', 'startable="yes"'):
+        for line in ('package="MariaDB"', 'arch="cedarview"', 'os_min_ver="7.1-42661"', 'startable="yes"'):
             if line not in info.splitlines():
                 raise ValueError('Incorrect INFO metadata: ' + line)
         with (outer/'package.tgz').open('rb') as stream:
@@ -38,7 +38,7 @@ def verify(spk, output):
         if f'checksum="{md5}"' not in info.splitlines():
             raise ValueError('SPK payload MD5 mismatch')
         privilege = json.loads((outer/'conf/privilege').read_text())
-        if privilege['defaults']['run-as'] != 'package' or privilege['username'] != 'mariadbcustom':
+        if privilege['defaults']['run-as'] != 'package' or privilege['username'] != 'mariadb':
             raise ValueError('Incorrect package privilege')
         with tarfile.open(outer/'package.tgz', 'r:gz') as archive:
             archive.extractall(target, filter='data')

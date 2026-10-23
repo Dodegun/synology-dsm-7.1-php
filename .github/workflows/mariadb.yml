@@ -81,8 +81,8 @@ jobs:
         if: steps.release.outputs.build == 'true'
         run: |
           sudo env GITHUB_SHA="$GITHUB_SHA" python3 mariadb/package-spk.py --runtime "mariadb/dist/$ARCHIVE" --output mariadb/dist
-          sudo useradd --system --no-create-home --shell /usr/sbin/nologin mariadbcustom
-          sudo python3 mariadb/verify-spk.py --spk "mariadb/dist/MariaDBCustom-cedarview-$MARIADB_VERSION-0001.spk" \
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin mariadb
+          sudo python3 mariadb/verify-spk.py --spk "mariadb/dist/MariaDB-cedarview-$MARIADB_VERSION-0001.spk" \
             --output mariadb/build/spk-validation.json
       - name: Save release artifacts
         if: steps.release.outputs.build == 'true'
@@ -171,7 +171,7 @@ jobs:
               .smoke.prepared_statement == true and .smoke.korean_emoji == true
             ' "$report"
           done
-          spk="MariaDBCustom-cedarview-$version-0001.spk"
+          spk="MariaDB-cedarview-$version-0001.spk"
           sha256sum --check --strict "$spk.sha256"
           jq -e '.ok == true and .upgrade_preserves_data == true' ../build/spk-validation.json
           if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" > "$RUNNER_TEMP/existing.json" 2>/dev/null; then

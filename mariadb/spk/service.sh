@@ -3,8 +3,8 @@ set -eu
 umask 077
 VERSION='@VERSION@'
 SERIES='@SERIES@'
-TARGET=${SYNOPKG_PKGDEST:-/var/packages/MariaDBCustom/target}
-VAR=${SYNOPKG_PKGVAR:-/var/packages/MariaDBCustom/var}
+TARGET=${SYNOPKG_PKGDEST:-/var/packages/MariaDB/target}
+VAR=${SYNOPKG_PKGVAR:-/var/packages/MariaDB/var}
 DATA=$VAR/data
 RUN=$VAR/run
 CONF=$VAR/my.cnf

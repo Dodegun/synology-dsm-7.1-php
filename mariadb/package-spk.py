@@ -33,14 +33,14 @@ def build(runtime, output):
         raise ValueError('Runtime digest or architecture mismatch')
     series = '.'.join(version.split('.')[:2])
     output.mkdir(parents=True, exist_ok=True)
-    spk = output / f'MariaDBCustom-cedarview-{version}-0001.spk'
+    spk = output / f'MariaDB-cedarview-{version}-0001.spk'
     with tarfile.open(runtime, 'r:gz') as archive:
         names = set(archive.getnames())
         required = {'bin/mariadbd', 'bin/mariadb', 'bin/mariadb-admin', 'scripts/mariadb-install-db'}
         if not required <= names:
             raise ValueError('Missing native runtime executables')
         extractsize = sum(item.size for item in archive.getmembers()) // 1024 + 1
-    info = f'''package="MariaDBCustom"
+    info = f'''package="MariaDB"
 version="{version}-0001"
 os_min_ver="7.1-42661"
 arch="cedarview"
@@ -86,11 +86,11 @@ esac
         payload.size, payload.mode, payload.mtime = runtime.stat().st_size, 0o644, 0
         with runtime.open('rb') as stream:
             archive.addfile(payload, stream)
-        privilege = {'defaults': {'run-as': 'package'}, 'username': 'mariadbcustom', 'groupname': 'mariadbcustom'}
+        privilege = {'defaults': {'run-as': 'package'}, 'username': 'mariadb', 'groupname': 'mariadb'}
         add_bytes(archive, 'conf/privilege', (json.dumps(privilege, indent=2)+'\n').encode())
         for name, script in scripts.items():
             add_bytes(archive, 'scripts/' + name, script.encode(), 0o755)
-    report = {'package': 'MariaDBCustom', 'version': version+'-0001', 'architecture': 'cedarview',
+    report = {'package': 'MariaDB', 'version': version+'-0001', 'architecture': 'cedarview',
               'minimum_dsm': '7.1-42661', 'format': 'unsigned-synology-spk',
               'spk_sha256': digest(spk), 'runtime_sha256': manifest['sha256'],
               'runtime_build_commit': manifest['build_commit'], 'build_commit': os.environ.get('GITHUB_SHA'),
