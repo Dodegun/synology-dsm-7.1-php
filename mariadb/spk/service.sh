@@ -10,6 +10,7 @@ RUN=$VAR/run
 CONF=$VAR/my.cnf
 SOCKET=$RUN/mariadb.sock
 PIDFILE=$RUN/mariadb.pid
+DBUSER=$(id -un)
 
 check_data() {
     if [ -d "$DATA/mysql" ]; then
@@ -52,7 +53,7 @@ EOF
     fi
     if [ ! -d "$DATA/mysql" ]; then
         "$TARGET/scripts/mariadb-install-db" --no-defaults --basedir="$TARGET" --datadir="$DATA" \
-            --auth-root-authentication-method=socket --auth-root-socket-user="$(id -un)" \
+            --auth-root-authentication-method=socket --auth-root-socket-user="$DBUSER" \
             --skip-test-db > "$VAR/log/initialize.log" 2>&1 || {
                 cat "$VAR/log/initialize.log" >&2
                 return 1
@@ -83,7 +84,7 @@ start_service() {
             tail -n 30 "$VAR/log/mariadb.log" "$VAR/log/console.log" >&2
             return 1
         fi
-        if "$TARGET/bin/mariadb-admin" --no-defaults --socket="$SOCKET" --user=root ping >/dev/null 2>&1; then
+        if "$TARGET/bin/mariadb" --no-defaults --socket="$SOCKET" --user="$DBUSER" --execute='SELECT 1' >/dev/null 2>&1; then
             return 0
         fi
         count=$((count + 1))
@@ -97,7 +98,7 @@ start_service() {
 stop_service() {
     if ! running; then return 0; fi
     stopped_pid=$pid
-    if ! "$TARGET/bin/mariadb-admin" --no-defaults --socket="$SOCKET" --user=root shutdown; then
+    if ! "$TARGET/bin/mariadb-admin" --no-defaults --socket="$SOCKET" --user="$DBUSER" shutdown; then
         if running; then kill -TERM "$stopped_pid"; fi
     fi
     count=0

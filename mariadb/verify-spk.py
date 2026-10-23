@@ -50,7 +50,7 @@ def verify(spk, output):
                 env=env, user=account.pw_uid, group=account.pw_gid, extra_groups=[],
                 text=True, capture_output=True, timeout=100, check=check)
         client = [str(target/'bin/mariadb'), '--no-defaults', f'--socket={var}/run/mariadb.sock',
-                  '--user=root', '--default-character-set=utf8mb4', '--batch', '--skip-column-names']
+                  '--user='+account.pw_name, '--default-character-set=utf8mb4', '--batch', '--skip-column-names']
         def sql(statement):
             return subprocess.check_output(client + ['--execute='+statement], env=env,
                 user=account.pw_uid, group=account.pw_gid, extra_groups=[], text=True, encoding='utf-8', timeout=30)
