@@ -36,6 +36,12 @@ jobs:
           gh release download "$RUNTIME_TAG" --repo "$GITHUB_REPOSITORY" --dir runtime \
             --pattern "mariadb-$version-cedarview-0001.tar.gz*"
           (cd runtime && sha256sum --check --strict "mariadb-$version-cedarview-0001.tar.gz.sha256")
+          archive="runtime/mariadb-$version-cedarview-0001.tar.gz"
+          digest=$(awk '{print $1}' "$archive.sha256")
+          build_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RUNTIME_TAG" --jq .sha)
+          jq -n --arg version "$version" --arg digest "$digest" --arg sha "$build_sha" \
+            '{version: $version, sha256: $digest, architecture: "cedarview", build_commit: $sha}' \
+            > "$archive.manifest.json"
       - name: Package the SPK
         run: |
           python3 mariadb/package-spk.py \
@@ -55,5 +61,4 @@ jobs:
       - name: Upload SPK to the existing release
         run: |
           (cd dist && sha256sum --check --strict "MariaDBCustom-cedarview-$MARIADB_VERSION-0001.spk.sha256")
-          gh release upload "$RUNTIME_TAG" dist/*.spk dist/*.spk.sha256 dist/*.spk.manifest.json \
-            dist/spk-validation.json --repo "$GITHUB_REPOSITORY"
+          gh release upload "$RUNTIME_TAG" dist/*.spk dist/*.spk.sha256 --repo "$GITHUB_REPOSITORY"

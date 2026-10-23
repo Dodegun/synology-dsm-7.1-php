@@ -84,7 +84,7 @@ jobs:
               echo "$tag already published; preserving existing assets"
               continue
             fi
-            gh release create "$tag" "$spk" "$spk.sha256" "$spk.manifest.json" \
+            gh release create "$tag" "$spk" "$spk.sha256" \
               --repo "$GITHUB_REPOSITORY" --target "$BUILD_SHA" \
               --title "PHP $version" --notes-file /dev/null --draft
             latest=false

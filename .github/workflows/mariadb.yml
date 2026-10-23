@@ -189,9 +189,7 @@ jobs:
           jq -e --arg sha "$BUILD_SHA" '.object.type == "commit" and .object.sha == $sha' "$RUNNER_TEMP/tag.json"
           printf 'MariaDB %s\n\nBuild: DSM 7.1 / cedarview / GCC 8.5.0 / glibc 2.26\n' "$version" \
             > "$RUNNER_TEMP/mariadb-release-notes.md"
-          gh release create "$tag" "$archive" "$archive.sha256" "$archive.manifest.json" \
-            "$spk" "$spk.sha256" "$spk.manifest.json" \
-            ../build/validation.json ../build/final-validation.json ../build/spk-validation.json \
+          gh release create "$tag" "$archive" "$archive.sha256" "$spk" "$spk.sha256" \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "MariaDB $version / DSM 7.1 cedarview" \
             --notes-file "$RUNNER_TEMP/mariadb-release-notes.md" --draft
