@@ -7,6 +7,10 @@ on:
         description: Resolve the latest stable MariaDB release
         type: boolean
         default: true
+      artifact_run_id:
+        description: Reuse an existing run's validated artifact to retry publication only
+        type: string
+        required: false
   schedule:
     - cron: '17 5 1 * *'
       timezone: Asia/Seoul
@@ -29,11 +33,10 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ !inputs.artifact_run_id }}
     name: MariaDB / cedarview
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    permissions:
-      contents: write
     env:
       CONTAINER: synology-mariadb-build
       GH_TOKEN: ${{ github.token }}
@@ -85,27 +88,6 @@ jobs:
             mariadb/build/final-validation.json
           if-no-files-found: error
           retention-days: 30
-      - name: Publish the release
-        if: steps.release.outputs.build == 'true'
-        working-directory: mariadb/dist
-        run: |
-          sha256sum --check --strict "$ARCHIVE.sha256"
-          digest=$(sha256sum "$ARCHIVE" | cut -d ' ' -f 1)
-          jq -e --arg version "$MARIADB_VERSION" --arg digest "$digest" \
-            '.version == $version and .sha256 == $digest and .physical_nas_tested == false' "$ARCHIVE.manifest.json"
-          cat > release-notes.md <<'EOF'
-          Native runtime for DSM 7.1 cedarview (GCC 8.5.0 / glibc 2.26 / Atom Bonnell).
-
-          Standalone tar.gz; extract to a dedicated directory and supply explicit basedir/datadir/socket settings.
-          CI checked ELF compatibility, InnoDB CRUD, prepared statements, rollback and Korean/emoji with the DSM SDK loader, including the extracted archive. This release was not tested on a physical NAS.
-
-          Back up and logically migrate existing databases; never point this server at an older production data directory. Installation and migration are manual. Source versions and SHA256 are in the manifest and bundled sources.lock.json.
-          EOF
-          gh release create "$RELEASE_TAG" "$ARCHIVE" "$ARCHIVE.sha256" "$ARCHIVE.manifest.json" \
-            ../build/validation.json ../build/final-validation.json \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "MariaDB $MARIADB_VERSION / DSM 7.1 cedarview" --notes-file release-notes.md --draft
-          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
       - name: Save build logs
         if: always() && steps.release.outputs.build == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -116,3 +98,89 @@ jobs:
             mariadb/build/status.txt
           if-no-files-found: warn
           retention-days: 14
+
+  release:
+    name: Publish MariaDB
+    needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || inputs.artifact_run_id != '') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN_ID: ${{ inputs.artifact_run_id || github.run_id }}
+    steps:
+      - name: Select the build artifact
+        id: artifact
+        run: |
+          [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > run.json
+          jq -e --arg repo "$GITHUB_REPOSITORY" --arg current "$GITHUB_RUN_ID" '
+            .head_branch == "main" and .head_repository.full_name == $repo and
+            .path == ".github/workflows/mariadb.yml" and
+            (.event == "push" or .event == "workflow_dispatch" or .event == "schedule") and
+            ((.id | tostring) == $current or .status == "completed")
+          ' run.json
+          echo "BUILD_SHA=$(jq -r .head_sha run.json)" >> "$GITHUB_ENV"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.expired == false) | .name' > artifacts.txt
+          if ! grep -Fxq MariaDB-cedarview-DSM7.1 artifacts.txt; then
+            if [[ "$BUILD_RUN_ID" != "$GITHUB_RUN_ID" ]]; then
+              echo 'The selected run has no available validated artifact' >&2
+              exit 1
+            fi
+            echo 'No new MariaDB release to publish'
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name MariaDB-cedarview-DSM7.1 --dir release
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
+      - name: Check the artifact and publish
+        if: steps.artifact.outputs.ready == 'true'
+        working-directory: release/dist
+        run: |
+          mapfile -t archives < <(find . -maxdepth 1 -type f -name '*.tar.gz')
+          [[ ${#archives[@]} == 1 ]]
+          archive=${archives[0]#./}
+          version=$(jq -er .version "$archive.manifest.json")
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$archive" == "mariadb-$version-cedarview-0001.tar.gz" ]]
+          tag="mariadb-$version-0001"
+          sha256sum --check --strict "$archive.sha256"
+          digest=$(sha256sum "$archive" | cut -d ' ' -f 1)
+          jq -e --arg version "$version" --arg digest "$digest" --arg sha "$BUILD_SHA" --arg tag "$tag" '
+            .version == $version and .sha256 == $digest and .build_commit == $sha and
+            .release_tag == $tag and .architecture == "cedarview" and .glibc == "2.26" and
+            .physical_nas_tested == false
+          ' "$archive.manifest.json"
+          for report in ../build/validation.json ../build/final-validation.json; do
+            jq -e --arg version "$version" '
+              .ok == true and .version == $version and .physical_nas_tested == false and
+              .smoke.innodb_crud == true and .smoke.transaction_rollback == true and
+              .smoke.prepared_statement == true and .smoke.korean_emoji == true
+            ' "$report"
+          done
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" > "$RUNNER_TEMP/existing.json" 2>/dev/null; then
+            jq -e --arg archive "$archive" --arg digest "sha256:$digest" '
+              .draft == false and any(.assets[]; .name == $archive and .digest == $digest and .state == "uploaded")
+            ' "$RUNNER_TEMP/existing.json"
+            echo "$tag already published with this artifact"
+            exit 0
+          fi
+          cat > "$RUNNER_TEMP/mariadb-release-notes.md" <<'EOF'
+          Native runtime for DSM 7.1 cedarview (GCC 8.5.0 / glibc 2.26 / Atom Bonnell).
+
+          Standalone tar.gz; extract to a dedicated directory and supply explicit basedir/datadir/socket settings.
+          CI checked ELF compatibility, InnoDB CRUD, prepared statements, rollback and Korean/emoji with the DSM SDK loader, including the extracted archive. This release was not tested on a physical NAS.
+
+          Back up and logically migrate existing databases; never point this server at an older production data directory. Installation and migration are manual. Source versions and SHA256 are in the manifest and bundled sources.lock.json.
+          EOF
+          gh release create "$tag" "$archive" "$archive.sha256" "$archive.manifest.json" \
+            ../build/validation.json ../build/final-validation.json \
+            --repo "$GITHUB_REPOSITORY" --target "$BUILD_SHA" \
+            --title "MariaDB $version / DSM 7.1 cedarview" \
+            --notes-file "$RUNNER_TEMP/mariadb-release-notes.md" --draft
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
