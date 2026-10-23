@@ -170,6 +170,12 @@ jobs:
             echo "$tag already published with this artifact"
             exit 0
           fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" > "$RUNNER_TEMP/tag.json" 2>/dev/null; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$tag" -f sha="$BUILD_SHA" > /dev/null
+            gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" > "$RUNNER_TEMP/tag.json"
+          fi
+          jq -e --arg sha "$BUILD_SHA" '.object.type == "commit" and .object.sha == $sha' "$RUNNER_TEMP/tag.json"
           cat > "$RUNNER_TEMP/mariadb-release-notes.md" <<'EOF'
           Native runtime for DSM 7.1 cedarview (GCC 8.5.0 / glibc 2.26 / Atom Bonnell).
 
@@ -180,7 +186,7 @@ jobs:
           EOF
           gh release create "$tag" "$archive" "$archive.sha256" "$archive.manifest.json" \
             ../build/validation.json ../build/final-validation.json \
-            --repo "$GITHUB_REPOSITORY" --target "$BUILD_SHA" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "MariaDB $version / DSM 7.1 cedarview" \
             --notes-file "$RUNNER_TEMP/mariadb-release-notes.md" --draft
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
