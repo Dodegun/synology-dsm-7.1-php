@@ -17,10 +17,10 @@
     },
     {
       "name": "mariadb",
-      "version": "13.0.2",
-      "filename": "mariadb-13.0.2.tar.gz",
-      "url": "https://archive.mariadb.org/mariadb-13.0.2/source/mariadb-13.0.2.tar.gz",
-      "sha256": "8ee8d955530faedcea344535de85495afb5b98128bbf660e56893e93e21ee8f7"
+      "version": "12.3.3",
+      "filename": "mariadb-12.3.3.tar.gz",
+      "url": "https://archive.mariadb.org/mariadb-12.3.3/source/mariadb-12.3.3.tar.gz",
+      "sha256": "e99d739fd4a55f9a11dea7bd2287a262673e287550af3071c8469dd2bec0c163"
     },
     {
       "name": "ncurses",

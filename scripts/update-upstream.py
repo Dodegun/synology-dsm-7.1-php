@@ -57,12 +57,17 @@ def refresh_php(series):
     save(lock_path, lock)
 
 
-def refresh_mariadb():
+def refresh_mariadb(series=None):
+    if series is not None and not re.fullmatch(r'\d+\.\d+', series):
+        raise ValueError('Invalid MariaDB series')
     lock_path = ROOT / 'mariadb/sources.lock.json'
     lock = json.loads(lock_path.read_text())
     row = next(item for item in lock['sources'] if item['name'] == 'mariadb')
     branches = get_json(MARIADB_API)['major_releases']
-    stable = [item for item in branches if item['release_status'] == 'Stable']
+    stable = [item for item in branches if item['release_status'] == 'Stable'
+              and (series is None or item['release_id'] == series)]
+    if not stable:
+        raise ValueError('No stable MariaDB release found for the selected series')
     branch = max(stable, key=lambda item: tuple(map(int, item['release_id'].split('.'))))['release_id']
     releases = get_json(MARIADB_API + branch + '/')['releases']
     candidates = [release for version, release in releases.items()
@@ -75,7 +80,8 @@ def refresh_mariadb():
     filename = f'mariadb-{version}.tar.gz'
     source = next(item for item in release['files']
                   if item['file_name'] == filename and item['os'] == 'Source')
-    print(f'MariaDB: {row["version"]} -> {version} (latest stable; excludes RC/preview)')
+    scope = f'{series} series' if series else 'all series'
+    print(f'MariaDB: {row["version"]} -> {version} (latest stable in {scope}; excludes RC/preview)')
     row.update(version=version, filename=filename,
                url=f'https://archive.mariadb.org/mariadb-{version}/source/{filename}',
                sha256=checksum(source['checksum']['sha256sum']))
@@ -86,8 +92,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('component', choices=['php', 'mariadb'])
     parser.add_argument('--php-series', choices=['8.2', '8.3', '8.4'])
+    parser.add_argument('--mariadb-series')
     args = parser.parse_args()
     if args.component == 'php':
         refresh_php(args.php_series)
     else:
-        refresh_mariadb()
+        refresh_mariadb(args.mariadb_series)

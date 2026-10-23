@@ -1,10 +1,10 @@
-name: MariaDB
+name: MariaDB 12.3
 
 on:
   workflow_dispatch:
     inputs:
       refresh:
-        description: Resolve the latest stable MariaDB release
+        description: Resolve the latest stable MariaDB 12.3 release
         type: boolean
         default: true
       artifact_run_id:
@@ -34,22 +34,24 @@ concurrency:
 jobs:
   build:
     if: ${{ !inputs.artifact_run_id }}
-    name: MariaDB / cedarview
+    name: MariaDB 12.3 / cedarview
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       CONTAINER: synology-mariadb-build
+      MARIADB_SERIES: '12.3'
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Resolve the latest stable release
+      - name: Resolve the latest stable MariaDB 12.3 release
         if: github.event_name == 'schedule' || inputs.refresh == true
-        run: python3 scripts/update-upstream.py mariadb
+        run: python3 scripts/update-upstream.py mariadb --mariadb-series "$MARIADB_SERIES"
       - name: Read the selected version
         run: |
           eval "$(python3 mariadb/config.py)"
+          [[ "$MARIADB_VERSION" == "$MARIADB_SERIES".* ]]
           echo "MARIADB_VERSION=$MARIADB_VERSION" >> "$GITHUB_ENV"
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
@@ -119,6 +121,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       BUILD_RUN_ID: ${{ inputs.artifact_run_id || github.run_id }}
+      MARIADB_SERIES: '12.3'
     steps:
       - name: Select the build artifact
         id: artifact
@@ -159,8 +162,9 @@ jobs:
           tag="mariadb-$version-0001"
           sha256sum --check --strict "$archive.sha256"
           digest=$(sha256sum "$archive" | cut -d ' ' -f 1)
-          jq -e --arg version "$version" --arg digest "$digest" --arg sha "$BUILD_SHA" --arg tag "$tag" '
+          jq -e --arg version "$version" --arg series "$MARIADB_SERIES" --arg digest "$digest" --arg sha "$BUILD_SHA" --arg tag "$tag" '
             .version == $version and .sha256 == $digest and .build_commit == $sha and
+            (.version | startswith($series + ".")) and
             .release_tag == $tag and .architecture == "cedarview" and .glibc == "2.26" and
             .physical_nas_tested == false
           ' "$archive.manifest.json"

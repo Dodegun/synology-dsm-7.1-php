@@ -8,7 +8,7 @@ mkdir -p "$STAGE/share/licenses/openssl" "$STAGE/share/licenses/ncurses"
 cp /build/openssl/LICENSE.txt "$STAGE/share/licenses/openssl/"
 cp /build/ncurses/COPYING "$STAGE/share/licenses/ncurses/"
 items=()
-for item in bin lib lib64 share scripts support-files COPYING README.md; do
+for item in bin lib lib64 share scripts support-files COPYING; do
     if [[ -e "$STAGE/$item" ]]; then items+=("$item"); fi
 done
 tar --sort=name --owner=0 --group=0 --numeric-owner \

@@ -7,7 +7,7 @@ on:
         description: Existing MariaDB runtime release
         type: string
         required: true
-        default: mariadb-13.0.2-0001
+        default: mariadb-12.3.3-0001
 
 permissions:
   contents: write
