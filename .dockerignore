@@ -3,3 +3,6 @@ downloads
 build
 dist
 .git
+mariadb/downloads
+mariadb/build
+mariadb/dist

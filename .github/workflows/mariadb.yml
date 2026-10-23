@@ -1,0 +1,118 @@
+name: MariaDB
+
+on:
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: Resolve the latest stable MariaDB release
+        type: boolean
+        default: true
+  schedule:
+    - cron: '17 5 1 * *'
+      timezone: Asia/Seoul
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/mariadb.yml
+      - Dockerfile
+      - .dockerignore
+      - mariadb/**
+      - scripts/update-upstream.py
+      - scripts/check-release.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mariadb-build-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: MariaDB / cedarview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    env:
+      CONTAINER: synology-mariadb-build
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve the latest stable release
+        if: github.event_name == 'schedule' || inputs.refresh == true
+        run: python3 scripts/update-upstream.py mariadb
+      - name: Read the selected version
+        run: |
+          eval "$(python3 mariadb/config.py)"
+          echo "MARIADB_VERSION=$MARIADB_VERSION" >> "$GITHUB_ENV"
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+      - name: Skip versions already published
+        id: release
+        run: python3 scripts/check-release.py "$RELEASE_TAG"
+      - name: Download locked sources
+        if: steps.release.outputs.build == 'true'
+        run: python3 mariadb/fetch-inputs.py
+      - name: Prepare the Linux builder
+        if: steps.release.outputs.build == 'true'
+        run: |
+          docker build -t synology-mariadb-builder:local .
+          docker run -d --name "$CONTAINER" --cpus=2 --memory=6g \
+            -e BUILD_JOBS=2 -e BUILD_COMMIT="$GITHUB_SHA" \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/mariadb,target=/work" \
+            --mount type=volume,source=synology-mariadb-build,target=/build \
+            synology-mariadb-builder:local sleep infinity
+      - name: Compile with the DSM 7.1 cedarview toolchain
+        if: steps.release.outputs.build == 'true'
+        run: docker exec "$CONTAINER" bash /work/build-linux.sh
+      - name: Audit and test the staged server
+        if: steps.release.outputs.build == 'true'
+        run: docker exec "$CONTAINER" python3 /work/verify-build.py
+      - name: Package and test the extracted release
+        if: steps.release.outputs.build == 'true'
+        run: docker exec "$CONTAINER" bash /work/package-linux.sh
+      - name: Save release artifacts
+        if: steps.release.outputs.build == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: MariaDB-cedarview-DSM7.1
+          path: |
+            mariadb/dist/*
+            mariadb/build/validation.json
+            mariadb/build/final-validation.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish the release
+        if: steps.release.outputs.build == 'true'
+        working-directory: mariadb/dist
+        run: |
+          sha256sum --check --strict "$ARCHIVE.sha256"
+          digest=$(sha256sum "$ARCHIVE" | cut -d ' ' -f 1)
+          jq -e --arg version "$MARIADB_VERSION" --arg digest "$digest" \
+            '.version == $version and .sha256 == $digest and .physical_nas_tested == false' "$ARCHIVE.manifest.json"
+          cat > release-notes.md <<'EOF'
+          Native runtime for DSM 7.1 cedarview (GCC 8.5.0 / glibc 2.26 / Atom Bonnell).
+
+          Standalone tar.gz; extract to a dedicated directory and supply explicit basedir/datadir/socket settings.
+          CI checked ELF compatibility, InnoDB CRUD, prepared statements, rollback and Korean/emoji with the DSM SDK loader, including the extracted archive. This release was not tested on a physical NAS.
+
+          Back up and logically migrate existing databases; never point this server at an older production data directory. Installation and migration are manual. Source versions and SHA256 are in the manifest and bundled sources.lock.json.
+          EOF
+          gh release create "$RELEASE_TAG" "$ARCHIVE" "$ARCHIVE.sha256" "$ARCHIVE.manifest.json" \
+            ../build/validation.json ../build/final-validation.json \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "MariaDB $MARIADB_VERSION / DSM 7.1 cedarview" --notes-file release-notes.md --draft
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
+      - name: Save build logs
+        if: always() && steps.release.outputs.build == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: MariaDB-cedarview-build-logs
+          path: |
+            mariadb/build/*.log
+            mariadb/build/status.txt
+          if-no-files-found: warn
+          retention-days: 14

@@ -41,12 +41,19 @@ jobs:
             .status == "completed" and .conclusion == "success" and
             .head_branch == "main" and .head_repository.full_name == $repo and
             .path == ".github/workflows/build.yml" and
-            (.event == "push" or .event == "workflow_dispatch")
+            (.event == "push" or .event == "workflow_dispatch" or .event == "schedule")
           ' run.json
           echo "BUILD_SHA=$(jq -r .head_sha run.json)" >> "$GITHUB_ENV"
       - name: Download and check the SPKs
         run: |
+          : > packages.tsv
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.expired == false) | .name' > artifact-names.txt
           for series in 8.2 8.3 8.4; do
+            if ! grep -Fxq "PHP$series-cedarview-DSM7.1" artifact-names.txt; then
+              echo "PHP $series: no new release artifact"
+              continue
+            fi
             gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" \
               --name "PHP$series-cedarview-DSM7.1" --dir "$series"
             mapfile -t packages < <(find "$series" -type f -name '*.spk')
@@ -69,15 +76,15 @@ jobs:
           while IFS=$'\t' read -r series version spk digest; do
             tag="php-$version"
             if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" > existing.json 2>/dev/null; then
-              jq -e --arg file "$(basename "$spk")" --arg digest "sha256:$digest" '
+              jq -e --arg file "$(basename "$spk")" '
                 .draft == false and
-                any(.assets[]; .name == $file and .state == "uploaded" and .digest == $digest) and
+                any(.assets[]; .name == $file and .state == "uploaded") and
                 any(.assets[]; .name == ($file + ".sha256") and .state == "uploaded")
               ' existing.json
-              echo "$tag already published with the same SPK"
+              echo "$tag already published; preserving existing assets"
               continue
             fi
-            gh release create "$tag" "$spk" "$spk.sha256" \
+            gh release create "$tag" "$spk" "$spk.sha256" "$spk.manifest.json" \
               --repo "$GITHUB_REPOSITORY" --target "$BUILD_SHA" \
               --title "PHP $version" --notes-file /dev/null --draft
             latest=false

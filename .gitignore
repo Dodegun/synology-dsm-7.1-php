@@ -2,4 +2,7 @@
 /analysis/
 /build/
 /dist/
+/mariadb/downloads/
+/mariadb/build/
+/mariadb/dist/
 __pycache__/

@@ -2,6 +2,14 @@ name: Build
 
 on:
   workflow_dispatch:
+    inputs:
+      refresh:
+        description: Resolve the latest stable release in each configured PHP branch
+        type: boolean
+        default: true
+  schedule:
+    - cron: '17 5 1 * *'
+      timezone: Asia/Seoul
   push:
     branches: [main]
     paths:
@@ -28,19 +36,33 @@ jobs:
     env:
       CONTAINER: synology-php-build
       PHP_SERIES: ${{ matrix.php }}
+    concurrency:
+      group: php-${{ matrix.php }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Download locked upstream sources
-        shell: pwsh
-        run: ./scripts/fetch-inputs.ps1
+      - name: Resolve the latest stable PHP release
+        if: github.event_name == 'schedule' || inputs.refresh == true
+        run: python3 scripts/update-upstream.py php --php-series "$PHP_SERIES"
       - name: Select the pinned PHP release
         run: |
           eval "$(python3 scripts/variant_config.py --shell)"
           echo "SPK=$PACKAGE-cedarview-$PHP_VERSION-0001.spk" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=php-$PHP_VERSION-0001" >> "$GITHUB_ENV"
           python3 scripts/variant_config.py
+      - name: Skip versions already published
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check-release.py "$RELEASE_TAG"
+      - name: Download locked upstream sources
+        if: steps.release.outputs.build == 'true'
+        shell: pwsh
+        run: ./scripts/fetch-inputs.ps1
       - name: Prepare the Linux builder
+        if: steps.release.outputs.build == 'true'
         run: |
           docker build -t synology-php-builder:local .
           docker run -d --name "$CONTAINER" --cpus=2 --memory=4g \
@@ -50,18 +72,23 @@ jobs:
             --mount type=volume,source=synology-php-build,target=/build \
             synology-php-builder:local sleep infinity
       - name: Compile with the cedarview DSM 7.1 toolchain
+        if: steps.release.outputs.build == 'true'
         run: docker exec "$CONTAINER" bash /work/scripts/build-linux.sh
       - name: Validate staged runtime against SDK glibc
+        if: steps.release.outputs.build == 'true'
         run: docker exec "$CONTAINER" python3 /work/scripts/validate-build.py
       - name: Generate Web Station defaults and package the SPK
+        if: steps.release.outputs.build == 'true'
         run: docker exec "$CONTAINER" bash /work/scripts/package-linux.sh
       - name: Extract and verify the final SPK
+        if: steps.release.outputs.build == 'true'
         run: |
           docker exec "$CONTAINER" python3 /work/scripts/verify-spk.py \
             "/work/dist/$SPK" --destination /build/verified-spk
           docker exec "$CONTAINER" python3 /work/scripts/validate-build.py \
             --stage /build/verified-spk --output "/work/build/$PHP_SERIES/final-validation.json"
       - name: Upload SPK
+        if: steps.release.outputs.build == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: PHP${{ matrix.php }}-cedarview-DSM7.1
@@ -75,7 +102,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Save build logs
-        if: always()
+        if: always() && steps.release.outputs.build == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: PHP${{ matrix.php }}-cedarview-build-logs
